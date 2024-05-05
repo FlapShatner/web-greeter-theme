@@ -1,0 +1,188 @@
+<!DOCTYPE HTML
+		  PUBLIC "-//W3C//DTD HTML 4.0//EN">
+<html>
+
+<head>
+	<link rel="stylesheet"
+		  href="styles.css"
+		  class="style" />
+
+</head>
+<!-- onclick="javascript:lightdm.shutdown();"	 -->
+
+<body id="body">
+	<div class="container">
+		<div class="topBox">
+			<div class='icons'>
+				<img class='power icon'
+					 src="poweroff.svg " />
+				<img id='sessions'
+					 class='sessions icon'
+					 src='window-restore.svg' />
+				<div class="session-list">
+					<ul id="session-list"></ul>
+				</div>
+			</div>
+		</div>
+		<div class="inputBox">
+			<div class="wrapper">
+				<div id="prompt"></div>
+				<form action="javascript:handle_input();">
+					<input autofocus
+						   id="entry" />
+				</form>
+
+			</div>
+		</div>
+		<div class="messageBox"
+			 id="messages"></div>
+	</div>
+	<script>
+		/*********************************************************/
+		/*               Callbacks for the greeter               */
+		/*********************************************************/
+
+		/**
+		 * show_prompt callback.
+		 */
+		window.show_prompt = function (text, type) {
+			// type is either "text" or "password"
+			let prompt = document.getElementById("prompt"),
+				entry = document.getElementById("entry");
+
+			entry.placeholder = text.charAt(0).toUpperCase() + text.slice(1, -1);
+
+			// clear entry
+			entry.value = "";
+			entry.type = type == 0 ? "text" : "password";
+		};
+
+		/**
+		 * show_message callback.
+		 */
+		window.show_message = function (text, type) {
+			if (0 === text.length) {
+				return;
+			}
+			let messages = document.getElementById('messages');
+			messages.style.visibility = "visible";
+			// type is either "info" or "error"
+			if (type == 'error') {
+				text = `<p style="color:red;">${text}</p>`;
+			}
+			messages.innerHTML = `${messages.innerHTML}${text}`;
+		};
+
+		/**
+		 * authentication_complete callback.
+		 * 
+		 * 
+		 */
+
+		let selected_session_key = ''
+		window.authentication_complete = function () {
+			if (window.lightdm.is_authenticated) {
+				// Start default session
+				// let body = document.getElementById('body');
+				let session = selected_session_key === '' ? window.lightdm.default_session : selected_session_key
+				document.documentElement.addEventListener('transitionend', () => { window.lightdm.start_session(session) });
+				document.documentElement.className = 'session_starting';
+			} else {
+				show_message("Authentication Failed", "error");
+				setTimeout(start_authentication, 2000);
+			}
+		};
+
+		/**
+		 * autologin_timer_expired callback.
+		 */
+		function autologin_timer_expired(username) {
+			/* Stub.  Does nothing. */
+		}
+
+		/*******************************************************************/
+		/*                Functions local to this theme                    */
+		/*******************************************************************/
+
+		/**
+		 * clear_messages
+		 */
+		function clear_messages() {
+			let messages = document.getElementById("messages");
+			messages.innerHTML = "";
+			messages.style.visibility = "hidden";
+		}
+
+		function add_active_state(element) {
+			const list_items = document.getElementsByClassName('session-list-item')
+			for (let i = 0; i < list_items.length; i++) {
+				list_items[i].classList.remove('active');
+			}
+			element.classList.add('active');
+		}
+
+		function get_session_list() {
+			let session_list = document.getElementById("session-list");
+			let sessions = window.lightdm.sessions;
+			for (let i = 0; i < sessions.length; i++) {
+				let session = sessions[i];
+				if (session.name !== 'GNOME') {
+					let session_name = session.name;
+					let session_key = session.key;
+					let session_list_item = document.createElement("li");
+					session_list_item.className = "session-list-item";
+					session_list_item.innerHTML = session_name;
+					session_list_item.setAttribute("data-session-key", session_key);
+					session_list_item.addEventListener("click", function () {
+						selected_session_key = session_key
+						add_active_state(session_list_item)
+					});
+					session_list.appendChild(session_list_item);
+					console.log(session)
+				}
+			}
+
+		}
+
+		document.addEventListener("keydown", function (event) {
+			if (event.key === "Enter") {
+				handle_input();
+			}
+		});
+
+		const list_element = document.querySelector('.session-list')
+		const sessions_btn = document.getElementById('sessions')
+		sessions_btn.addEventListener('click', function () {
+			list_element.classList.toggle('show');
+		})
+		/**
+		 * Kickoff the authentication process
+		 */
+		window.start_authentication = function () {
+			clear_messages();
+			// start without providing "user" to make the greeter prompt for "user"
+			window.lightdm.authenticate(null);
+		};
+
+		/**
+		 * handle the input from the entry field.
+		 */
+		window.handle_input = function () {
+			let entry = document.getElementById("entry");
+			window.lightdm.respond(entry.value);
+		};
+
+		window.addEventListener("GreeterReady", () => {
+			window.lightdm.show_message.connect(show_message)
+			window.lightdm.show_prompt.connect(show_prompt)
+			window.lightdm.authentication_complete.connect(authentication_complete)
+			window.lightdm.autologin_timer_expired.connect(autologin_timer_expired)
+			get_session_list()
+			start_authentication()
+		});
+
+	</script>
+	<!--<script src="../_vendor/js/mock.js"></script>-->
+</body>
+
+</html>
